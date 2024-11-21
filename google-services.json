@@ -1,0 +1,30 @@
+{
+    "project_info": {
+      "project_number": "963448591180",
+      "firebase_url": "https://autoapp-e858e-default-rtdb.firebaseio.com",
+      "project_id": "autoapp-e858e",
+      "storage_bucket": "autoapp-e858e.appspot.com"
+    },
+    "client": [
+      {
+        "client_info": {
+          "mobilesdk_app_id": "1:963448591180:android:549bc49fa140012c1635e9",
+          "android_client_info": {
+            "package_name": "com.nisha0707.autoapp"
+          }
+        },
+        "oauth_client": [],
+        "api_key": [
+          {
+            "current_key": "AIzaSyDI8JYqhmpVdc6bx8MF6RC8emXZBMxfCRg"
+          }
+        ],
+        "services": {
+          "appinvite_service": {
+            "other_platform_oauth_client": []
+          }
+        }
+      }
+    ],
+    "configuration_version": "1"
+  }

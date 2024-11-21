@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "autoapp",
+    "slug": "autoapp",
+    "scheme": "autoapp-scheme",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nisha0707.autoapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDo1tnDHs2gmgdo9fPsig6KBaoz0zIz9zc"
+        }
+      },
+      "package": "com.nisha0707.autoapp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDo1tnDHs2gmgdo9fPsig6KBaoz0zIz9zc"
+        }
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "03d02b2c-c196-40e7-82fa-8203d5c36dec"
+      }
+    }
+  }
+}
