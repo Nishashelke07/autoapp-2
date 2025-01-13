@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import Layout from "./_layout";
+import 'react-native-get-random-values';
 
 export default function App() {
   return (

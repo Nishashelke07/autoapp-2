@@ -14,6 +14,7 @@ import { ref, set, getDatabase } from "firebase/database";
 import { auth } from "../firebaseConfig";
 import globalStyles from "../styles";
 import { useRouter } from "expo-router";
+import { registerUser } from "../services/registerUser";
 
 export default function usersignUp() {
   const router = useRouter();
@@ -117,29 +118,16 @@ export default function usersignUp() {
     )
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const userId = userCredential.user.uid;
-      const db = getDatabase();
 
-      const userData = {
-        email,
-        name,
-        city: selectedValue,
-        mobile: mobileNumber,
-        createdAt: new Date().toISOString(),
-        type: "customer",
+      const customerData = {
+        name: name,
+        email: email,
+        password: password,
+        phone: mobileNumber,
+        role: 'customer',
       };
 
-      await set(ref(db, "users/" + userId), userData);
-      Alert.alert(
-        "Account created",
-        "Your account has been successfully created!"
-      );
-      router.push("/LoginForm");
+      registerUser(customerData, router);
     } catch (error) {
       console.log("Error creating user in DB:", error);
       if (error.code === "auth/email-already-in-use") {

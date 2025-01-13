@@ -2,7 +2,6 @@ import { View, StyleSheet } from "react-native";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
 export default function InputLocation(props) {
-  
 
   return (
     <View>

@@ -1,56 +1,163 @@
-import { child, get, getDatabase, ref } from "firebase/database";
-import { getDistance } from 'geolib';
+import { getAccessToken } from "./authService";
+import axios from "axios";
+import Constants from "expo-constants";
 
-export function getCurrentDrivesOnline(setDrivesOnline) {
-    const dbRef = ref(getDatabase());
-    get(child(dbRef, 'locations/drivers'))
-        .then((snapshot) => {
-            if (snapshot.exists()) {
-                const response = snapshot.val();
-                const driverArray = Object.keys(response).map(key => ({
-                    id: key,
-                    ...response[key]
-                }));
-                setDrivesOnline(driverArray);
-            } else {
-                console.log('No data available');
-            }
-        })
-        .catch((error) => {
-            console.error(error);
-        });
+export const getDriversInArea = async (currentLocation, setDriversNearBy) => {
+  const token = await getAccessToken();
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/get-drivers.php`;
+  let response;
+
+  try {
+    response = await axios.post(API_URL, currentLocation, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    setDriversNearBy(response.data.data);
+  } catch (e) {
+    console.log(e, "error");
+  }
 };
 
-export const filterAndSortLocations = (currentLocation, driverLocations, maxDistance) => {
-    if (!currentLocation || !currentLocation.latitude || !currentLocation.longitude) {
-      console.error("Invalid current location");
-      return [];
-    }
-  
-    return driverLocations
-      .filter(driver => {
-        if (!driver.latitude || !driver.longitude) return false; // Ensure driver's coordinates exist
-        if (!driver.visible) return false; // Only include visible drivers
-  
-        const distance = getDistance(
-          { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
-          { latitude: driver.latitude, longitude: driver.longitude }
-        );
-  
-        return distance <= maxDistance; // Filter drivers within the distance
-      })
-      .sort((a, b) => {
-        // Optionally sort by distance (ascending)
-        const distanceA = getDistance(
-          { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
-          { latitude: a.latitude, longitude: a.longitude }
-        );
-  
-        const distanceB = getDistance(
-          { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
-          { latitude: b.latitude, longitude: b.longitude }
-        );
-  
-        return distanceA - distanceB;
-      });
+export const updateAutoLocation = async (
+  driverLocation,
+  discount,
+  isVisible
+) => {
+  const token = await getAccessToken();
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/update-driver-location.php`;
+
+  const payload = {
+    latitude: driverLocation.latitude,
+    longitude: driverLocation.longitude,
+    is_available: isVisible,
+    discount: discount,
   };
+
+  try {
+    response = await axios.post(API_URL, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (e) {
+    console.log(e, "error");
+  }
+};
+
+export const sendRideRequest = async (driver, pickUp, destination) => {
+  const token = await getAccessToken();
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/send-ride-request.php`;
+
+  const payload = {
+    driver_id: driver.driver_id,
+    pickup_latitude: pickUp.latitude,
+    pickup_longitude: pickUp.longitude,
+    drop_latitude: destination.latitude,
+    drop_longitude: destination.longitude,
+  };
+
+  try {
+    await axios.post(API_URL, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (e) {
+    console.log(e, "error");
+  }
+};
+
+export const pollForRides = async () => {
+  const token = await getAccessToken();
+  if (!token) {
+    console.error('Failed to retrieve access token');
+    return { error: true, message: 'Authorization failed' };
+  }
+
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/poll-ride-requests.php`;
+
+  try {
+    const response = await axios.post(API_URL, {}, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response?.data) {
+      return response.data; // return the data as is
+    } else {
+      console.warn('Unexpected response format:', response);
+      return { error: true, message: 'Unexpected response format' };
+    }
+  } catch (e) {
+    console.error(e, "error");
+    return { error: true, message: e.message || 'Polling failed' };
+  }
+};
+
+export const handleRideRequest = async (status) => {
+  const token = await getAccessToken();
+  if (!token) {
+    console.error('Failed to retrieve access token');
+    return { error: true, message: 'Authorization failed' };
+  }
+
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/update-ride-request.php`;
+  try {
+    const response = await axios.post(API_URL, status, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response?.data || null; // Return data or null if undefined
+  } catch (e) {
+    console.error(e, "error");
+    return { error: true, message: e.message || 'request failed' };
+  }
+};
+
+export const checkRideStatus = async () => {
+  const token = await getAccessToken();
+  if (!token) {
+    console.error('Failed to retrieve access token');
+    return { error: true, message: 'Authorization failed' };
+  }
+
+  const API_URL = `${Constants.expoConfig.extra.apiUrl}/poll-ride-status.php`;
+  try {
+    const response = await axios.post(API_URL, {}, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response?.data || null; // Return data or null if undefined
+  } catch (e) {
+    console.error(e, "error");
+    return { error: true, message: e.message || 'request failed' };
+  }
+};
+
+export const getDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371e3; // Earth's radius in meters
+  const rad = (deg) => (deg * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLon = rad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+
+export const updateDriverLocation = async (latitude, longitude) => {
+  // console.log(latitude, longitude, "latitude, longitude");
+};
+

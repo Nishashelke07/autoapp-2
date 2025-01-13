@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -51,7 +52,8 @@
       },
       "eas": {
         "projectId": "03d02b2c-c196-40e7-82fa-8203d5c36dec"
-      }
+      },
+      "apiUrl": "https://www.acropolissystems.com/auto-app"
     }
   }
 }

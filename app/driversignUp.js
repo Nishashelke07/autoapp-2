@@ -16,6 +16,7 @@ import { auth } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
 import globalStyles from "../styles";
 import { useRouter } from "expo-router";
+import { registerUser } from "../services/registerUser";
 
 export default function driversignUp() {
   const router = useRouter();
@@ -151,44 +152,18 @@ export default function driversignUp() {
 
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const userId = userCredential.user.uid;
-      const db = getDatabase();
-
-      const userData = {
-        email,
-        name,
-        city: selectedValue,
-        mobile: mobileNumber,
-        vehicleNumber,
-        createdAt: new Date().toISOString(),
-        type: "driver",
+      const driverData = {
+        name: name,
+        email: email,
+        password: password,
+        phone: mobileNumber,
+        "role": "driver",
+        "vehicle_number": vehicleNumber,
+        "license_photo": licenseIdPhoto
       };
 
-      if (licenseIdPhoto) {
-        userData.licenseIdPhoto = licenseIdPhoto;
-      }
-
-      await set(ref(db, "users/" + userId), userData);
-
-      await set(ref(db, "locations/drivers/" + userId), {
-        ...userData,
-        location: {
-          latitude: 0,
-          longitude: 0,
-        },
-        visible: false,
-      });
-
-      Alert.alert(
-        "Account created",
-        "Your account has been successfully created!"
-      );
-      router.push("/LoginForm");
+      registerUser(driverData, router);
+      
     } catch (error) {
       console.log("Error creating user in DB:", error);
       if (error.code === "auth/email-already-in-use") {

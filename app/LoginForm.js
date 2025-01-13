@@ -7,28 +7,48 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Switch,
+  ActivityIndicator,
 } from "react-native";
 import Rikshaw from "../assets/ricksaw.png";
 import { router } from "expo-router";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebaseConfig";
 import { AppContext } from "../context";
+import axios from "axios";
+import Constants from 'expo-constants';
+import { login, saveAccessToken } from "../services/authService";
 
 export default function LoginForm() {
-  const {setAuthInfo} = useContext(AppContext);
+  const { role, setRole } = useContext(AppContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const toggleSwitch = () => {
+    setRole((prevRole) => (prevRole === "customer" ? "driver" : "customer"));
+  };
 
   const signIn = async () => {
+    setLoading(true);
     try {
-      const response = await signInWithEmailAndPassword(auth, email, password);
-      if(response?.user) {
-        setAuthInfo(response.user);
-        router.push("/dashboard")
-        // Alert.alert('issue with routing');
+      const payload = {
+        email,
+        password,
+        role
+      };
+
+      const response = await login(payload);
+      await saveAccessToken(response.token);
+      if (response.status === 1) {
+        router.push("/dashboard");
+      }
+      else {
+        Alert.alert("Sign in failed: " + response.data.message)
       }
     } catch (error) {
+      console.log(error, "Error");
       Alert.alert("Sign in failed: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,10 +77,26 @@ export default function LoginForm() {
         placeholder="Password"
         autoCapitalize="none"
       ></TextInput>
+
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Text style={{fontSize: 14, fontWeight: "600"}}>{role.toUpperCase()} </Text>
+
+        <Switch
+          trackColor={{ false: "#4CAF50", true: "#81b0ff" }}
+          thumbColor={isEnabled ? "#f5dd4b" : "#f4f3f4"}
+          ios_backgroundColor="#3e3e3e"
+          value={role === "driver"}
+          onValueChange={toggleSwitch}
+        />
+      </View>
+
       <View style={styles.buttons}>
-        <TouchableOpacity  onPress={signIn} style={styles.button}>
+        <TouchableOpacity onPress={signIn} style={styles.button}>
           <Text style={styles.textBold}>LOGIN</Text>
         </TouchableOpacity>
+        {
+          loading && <ActivityIndicator size='large' color="#0000ff"/>
+        }
         <View style={styles.signUpButton}>
           <TouchableOpacity onPress={usersignUp}>
             <Text style={styles.signupText}>for Customer</Text>
@@ -107,7 +143,7 @@ const styles = StyleSheet.create({
   signUpButton: {
     flexDirection: "row",
     gap: 10,
-    bottom: 400,
+    bottom: 450,
     left: 80,
   },
   signupText: {

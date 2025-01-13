@@ -6,16 +6,22 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  Modal,
+  TouchableWithoutFeedback,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import InputLocation from "./inputLocation";
 import * as Location from "expo-location";
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import { ref, set } from "firebase/database";
 import { db } from "../firebaseConfig";
 import {
+  checkRideStatus,
   filterAndSortLocations,
   getCurrentDrivesOnline,
+  getDriversInArea,
+  handleRideRequest,
+  sendRideRequest,
 } from "../services/getDrivesOnline";
 import AutoMarker from "../assets/ricksaw.png";
 import { AppContext } from "../context";
@@ -27,6 +33,9 @@ import Foundation from "@expo/vector-icons/Foundation";
 import { calculateDistance } from "../services/calculateDistance";
 import { getAuth, signOut } from "firebase/auth";
 import { useNavigation } from "@react-navigation/native";
+import Constants from "expo-constants";
+import PollingComponent from "./components/shared/pollingComponent";
+import { router } from "expo-router";
 
 export default function UserDashboard(props) {
   const {
@@ -53,6 +62,16 @@ export default function UserDashboard(props) {
   const [waitStart, setWaitStart] = useState(false);
   const [bounds, setBounds] = useState(null);
   const [rideInProgress, setRideInProgress] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [rideResponse, setRideResponse] = useState(null);
+  const [stopCondition, setStopCondition] = useState(false);
+  const [fakeRidesNearUser, setFakeRidesNearUser] = useState([]);
+
+
+  const closeModal = () => setVisible(false);
+  const intervalRef = useRef(null);
+
+  const [drivesNearBy, setDriversNearBy] = useState([]);
 
   const PUNE_CENTER = { lat: 18.5204, lng: 73.8567 };
   const NAGPUR_CENTER = { lat: 21.1458, lng: 79.0882 };
@@ -87,8 +106,9 @@ export default function UserDashboard(props) {
     }
   };
 
+  //request and get current user location
   useEffect(() => {
-    const fetchLocationAndDrivers = async () => {
+    const fetchAndSetCurrentLocation = async () => {
       try {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
@@ -112,65 +132,77 @@ export default function UserDashboard(props) {
         const { latitude, longitude } = location.coords;
         setCurrentLocation({ latitude, longitude });
         setBoundsBasedOnLocation(latitude, longitude);
-        getCurrentDrivesOnline((response) => {
-          setDriverLocations(response);
-          setLoading(false);
-        });
+        setLoading(false);
+        const nearByFakeRides = [
+          { id: 1, latitude: latitude + 0.001, longitude: longitude + 0.001, title: 'Ride 1' },
+          { id: 2, latitude: latitude - 0.001, longitude: longitude - 0.001, title: 'Ride 2' },
+          { id: 3, latitude: latitude + 0.002, longitude: longitude - 0.002, title: 'Ride 3' },
+          { id: 4, latitude: latitude - 0.002, longitude: longitude + 0.002, title: 'Ride 4' },
+        ];
+        setFakeRidesNearUser(nearByFakeRides);
       } catch (err) {
         setError("Failed to fetch data");
         setLoading(false);
       }
     };
-    fetchLocationAndDrivers();
+    fetchAndSetCurrentLocation();
   }, []);
 
-  useEffect(() => {
-    if (currentLocation && driverLocations.length > 0) {
-      const driverArray = Object.values(driverLocations);
-      const filteredDrivers = filterAndSortLocations(currentLocation, driverArray, maxDistance = 40000);
-  
-      console.log("Filtered Drivers:", filteredDrivers);
-      setNearbyDrivers(filteredDrivers);
-    }
-  }, [currentLocation, driverLocations]);
-  
+  // Function to randomly move rides
+  const moveRides = () => {
+    setFakeRidesNearUser((prevRides) =>
+      prevRides.map((ride) => ({
+        ...ride,
+        latitude: ride.latitude + (Math.random() - 0.5) * 0.001, // Small random movement
+        longitude: ride.longitude + (Math.random() - 0.5) * 0.001,
+      }))
+    );
+  };
 
   useEffect(() => {
-    let interval;
-    if (bottomSheetVisible) {
-      interval = setInterval(() => {
-        setProgress((prevProgress) => {
-          if (prevProgress >= 1) {
-            clearInterval(interval);
-            setBottomSheetVisible(false);
-            return prevProgress;
-          }
-          return prevProgress + 0.01;
-        });
-      }, 100);
-    }
-    return () => clearInterval(interval);
-  }, [bottomSheetVisible]);
+    // Start moving rides every 5 seconds
+    intervalRef.current = setInterval(moveRides, 5000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
 
-  const handleRequestRide = (driver) => {
+  //get drivers in the vicinity
+  useEffect(() => {
+    currentLocation && getDriversInArea(currentLocation, setDriversNearBy);
+  }, [destination]);
+
+  // useEffect(() => {
+  //   if (currentLocation && driverLocations.length > 0) {
+  //     const driverArray = Object.values(driverLocations);
+  //     const filteredDrivers = filterAndSortLocations(currentLocation, driverArray, maxDistance = 40000);
+
+  //     setNearbyDrivers(filteredDrivers);
+  //   }
+  // }, [currentLocation, driverLocations]);
+
+  // useEffect(() => {
+  //   let interval;
+  //   if (bottomSheetVisible) {
+  //     interval = setInterval(() => {
+  //       setProgress((prevProgress) => {
+  //         if (prevProgress >= 1) {
+  //           clearInterval(interval);
+  //           setBottomSheetVisible(false);
+  //           return prevProgress;
+  //         }
+  //         return prevProgress + 0.01;
+  //       });
+  //     }, 100);
+  //   }
+  //   return () => clearInterval(interval);
+  // }, [bottomSheetVisible]);
+
+  const handleRequestRide = async (driver) => {
     setSelectedDriver(driver);
     setRideInProgress(true);
     setWaitStart(true);
 
-    const userRef = ref(
-      db,
-      "locations/" +
-        "drivers/" +
-        `${driver.id}/` +
-        "newRequest/" +
-        `${authInfo.uid}/`
-    );
     try {
-      set(userRef, {
-        pickUp: { currentLocation, name: placeName },
-        drop: destination,
-        customer: user?.name,
-      });
+      await sendRideRequest(driver, currentLocation, destination);
     } catch (error) {
       console.log(error, "error");
     }
@@ -191,37 +223,28 @@ export default function UserDashboard(props) {
   };
 
   const handleLogout = () => {
-    const auth = getAuth();
-    signOut(auth)
-      .then(() => {
-        Alert.alert("Logged Out", "You have been successfully logged out.");
-        navigation.navigate("LoginForm");
-      })
-      .catch((error) => {
-        console.error("Error logging out:", error);
-        Alert.alert("Error", "Failed to log out. Please try again.");
-      });
+  
   };
 
-  useEffect(() => {
-    let timer;
-    if (rideInProgress) {
-      timer = setTimeout(() => {
-        handleTimeout();
-      }, 120000);
-    }
+  // useEffect(() => {
+  //   let timer;
+  //   if (rideInProgress) {
+  //     timer = setTimeout(() => {
+  //       handleTimeout();
+  //     }, 120000);
+  //   }
 
-    return () => clearTimeout(timer);
-  }, [rideInProgress]);
+  //   return () => clearTimeout(timer);
+  // }, [rideInProgress]);
 
-  if (loading) {
-    return (
-      <View style={styles.text}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Setting up things...</Text>
-      </View>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <View style={styles.text}>
+  //       <ActivityIndicator size="large" color="#0000ff" />
+  //       <Text>Setting up things...</Text>
+  //     </View>
+  //   );
+  // }
 
   if (error) {
     return (
@@ -231,78 +254,114 @@ export default function UserDashboard(props) {
     );
   }
 
+  const handlePollResult = (data) => {
+    setRideResponse(data);
+    if(data.data.status === 'accepted'){
+      setStopCondition(true);
+      router.push('/ridePage');
+    }
+    else if (data.data.status === 'rejected') {
+      setStopCondition(true); // Stop polling when condition is met
+    }
+  };
+
   return (
     <View style={{ height: "100%" }}>
       <MapView
         style={waitStart ? styles.cutMap : styles.fullMap}
         region={{
-          latitude: currentLocation.latitude || 37.78825,
-          longitude: currentLocation.longitude || -122.4324,
+          latitude: currentLocation?.latitude || 37.78825,
+          longitude: currentLocation?.longitude || -122.4324,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
         provider={PROVIDER_GOOGLE}
         showsUserLocation={true}
       >
-        {destination ? (
-          nearbyDrivers.length > 0 ? (
-            <View>
-              {nearbyDrivers
-                .filter(
-                  (driver) => !selectedDriver || driver.id === selectedDriver.id
-                )
-                .map((driver) => (
-                  <Marker
-                    key={driver.id}
-                    coordinate={{
-                      latitude: driver.latitude,
-                      longitude: driver.longitude,
-                    }}
-                    title={driver?.name || ""}
-                    onPress={() => handleRequestRide(driver)}
-                    style={{
-                      justifyContent: "center",
-                      flexDirection: "column",
-                      alignItems: "center",
-                    }}
+        {destination &&
+          drivesNearBy &&
+          drivesNearBy
+            .filter(
+              (driver) =>
+                !selectedDriver || driver.driver_id === selectedDriver.driver_id
+            )
+            .map((driver) => (
+              <Marker
+                key={driver.driver_id}
+                coordinate={{
+                  latitude: parseFloat(driver.latitude),
+                  longitude: parseFloat(driver.longitude),
+                }}
+                onPress={() => handleRequestRide(driver)}
+              >
+                {/* Use Marker callout or children directly */}
+                <>
+                  <View
+                    style={{ justifyContent: "center", flexDirection: "row" }}
                   >
-                    <Text>{driver.name}</Text>
-
-                    <View
-                      style={{ justifyContent: "center", flexDirection: "row" }}
-                    >
-                      <Foundation
-                        name="pricetag-multiple"
-                        size={25}
-                        color="green"
-                      />
-                      <Text>{driver.discount || 0}% </Text>
-                    </View>
-                    <Image
-                      source={AutoMarker}
-                      style={{ height: 28, width: 28 }}
+                    <Foundation
+                      name="pricetag-multiple"
+                      size={25}
+                      color="green"
                     />
-                  </Marker>
-                ))}
-
-              {selectedDriver && (
-                <ShowDirections
-                  pickup={currentLocation}
-                  destination={destination}
-                />
-              )}
-
-              <Marker coordinate={destination} title="You are here">
-                <FontAwesome5 name="map-marker-alt" size={24} color="red" />
+                    <Text>{driver?.discount || 0}%</Text>
+                  </View>
+                  <Image
+                    source={AutoMarker}
+                    style={{ height: 28, width: 28 }}
+                  />
+                </>
               </Marker>
-            </View>
-          ) : (
-            <Text>No drivers found within 1km.</Text>
-          )
-        ) : (
-          ""
+            ))}
+
+        {selectedDriver && (
+          <ShowDirections pickup={currentLocation} destination={destination} />
         )}
+
+        {/* show destination marker  */}
+        {destination && (
+          <Marker coordinate={destination} title="You are here">
+            <FontAwesome5 name="map-marker-alt" size={24} color="red" />
+          </Marker>
+        )}
+
+        {!destination && fakeRidesNearUser.map((ride) => (
+          <Marker
+            key={ride.id}
+            coordinate={{
+              latitude: ride.latitude,
+              longitude: ride.longitude,
+            }}
+            title={ride.title}
+            description="Moving Ride"
+          >
+            <Image
+                    source={AutoMarker}
+                    style={{ height: 28, width: 28 }}
+                  />
+          </Marker>
+        ))}
       </MapView>
+
+      {/* Render Modal Separately */}
+      {destination && !drivesNearBy && (
+        <Modal
+          transparent={true}
+          animationType="fade"
+          visible={visible}
+          onRequestClose={closeModal}
+        >
+          <TouchableWithoutFeedback onPress={closeModal}>
+            <View style={styles.modalContainer}>
+              <TouchableWithoutFeedback>
+                <View style={styles.alertBox}>
+                  <Text style={styles.alertText}>No Drivers in the area at the moment! Please try later.</Text>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
 
       {waitStart && (
         <GestureHandlerRootView>
@@ -314,19 +373,26 @@ export default function UserDashboard(props) {
         <InputLocation setDestination={setDestination} bounds={bounds} />
       </View>
 
-      {rideInProgress && (
+      {/* {rideInProgress && (
         <TouchableOpacity
           onPress={handleCancelRide}
           style={styles.cancelButton}
         >
           <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </TouchableOpacity>
-      )}
+      )} */}
       <View style={styles.logoutButtonContainer}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
+
+      <PollingComponent 
+        visibility={rideInProgress}
+        pollFunction={checkRideStatus} 
+        stopCondition={stopCondition}
+        onPollResult={handlePollResult}    
+      />
     </View>
   );
 }
@@ -381,5 +447,22 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: "white",
     fontWeight: "bold",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertBox: {
+    width: 300,
+    padding: 20,
+    backgroundColor: "white",
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  alertText: {
+    fontSize: 18,
+    textAlign: "center",
   },
 });

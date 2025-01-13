@@ -19,11 +19,19 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, onValue, update } from "firebase/database";
 import { AppContext } from "../context";
 import ShowDirections from "../screens/showDirections";
+import { handleRideRequest, pollForRides, updateAutoLocation } from "../services/getDrivesOnline";
+import PollingComponent from "./components/shared/pollingComponent";
+import { router } from "expo-router";
 
 const auth = getAuth();
 const database = getDatabase();
 
 const DriverDashboard = () => {
+  const {
+    setCustomerPickUpLocation,
+    setCustomerDropLocation
+  } = useContext(AppContext);
+
   const [userInfo, setUserInfo] = useState(null);
   const [initialRegion, setInitialRegion] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -33,32 +41,17 @@ const DriverDashboard = () => {
   const [discount, setDiscount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
+  const [stopCondition, setStopCondition] = useState(false);
+  const [rideReq, setRideReq] = useState(null);
+  const [placeName, setPlaceName] = useState(null);
+  const [pickUpDetails, setPickUpDetails] = useState(null);
 
-  const { pickUpDetails } = useContext(AppContext);
   const navigation = useNavigation();
   const mapRef = useRef(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserInfo({
-          id: user.uid,
-          email: user.email,
-          phone: user.phoneNumber,
-          vehicleNumber: user.vehicleNumber,
-        });
-      } else {
-        setUserInfo(null);
-        navigation.navigate("LoginForm");
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
     let timer;
-    if (rideRequest) {
+    if (rideRequest?.pickup_latitude) {
       setCountdown(120);
       timer = setInterval(() => {
         setCountdown((prevCountdown) => {
@@ -73,12 +66,6 @@ const DriverDashboard = () => {
 
     return () => clearInterval(timer);
   }, [rideRequest]);
-
-  useEffect(() => {
-    if (userInfo && userInfo.id) {
-      subscribeToRideRequests(userInfo.id);
-    }
-  }, [userInfo]);
 
   useEffect(() => {
     const getCurrentLocation = async () => {
@@ -97,44 +84,24 @@ const DriverDashboard = () => {
       };
       setInitialRegion(newRegion);
       setDriverLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude:  parseFloat("18.5575") || location.coords.latitude,
+        longitude: parseFloat("73.7726") || location.coords.longitude,
       });
     };
 
     getCurrentLocation();
   }, []);
 
+  useEffect(()=> {
+    driverLocation &&
+    updateAutoLocation(driverLocation, discount, isVisible);
+  }, [isVisible]);
+
   const handleTimeout = () => {
     if (userInfo && rideRequest) {
       Alert.alert("Request Timeout", "The ride request has timed out.");
       setRideRequest(null);
     }
-  };
-
-  const subscribeToRideRequests = (driverId) => {
-    const requestsRef = ref(
-      database,
-      `/locations/drivers/${driverId}/newRequest`
-    );
-    onValue(requestsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const requestData = snapshot.val();
-        const requestKeys = Object.keys(requestData);
-        if (requestKeys.length > 0) {
-          const firstRequestKey = requestKeys[0];
-          const requestDetails = requestData[firstRequestKey];
-          requestDetails.id = firstRequestKey;
-          console.log("Ride request data:", requestDetails);
-          setRideRequest(requestDetails);
-          setFare(330);
-        } else {
-          setRideRequest(null);
-        }
-      } else {
-        setRideRequest(null);
-      }
-    });
   };
 
   const updateDriverLocation = async () => {
@@ -173,7 +140,7 @@ const DriverDashboard = () => {
 
     if (newVisibility) {
       setModalVisible(true);
-      await updateDriverLocation();
+      // await updateDriverLocation();
     }
   };
 
@@ -196,91 +163,20 @@ const DriverDashboard = () => {
     }
   };
 
-  const handleAcceptRide = () => {
-    if (userInfo && rideRequest) {
-      const requestRef = ref(
-        database,
-        `/locations/drivers/${userInfo.id}/newRequest`
-      );
-      update(requestRef, { status: "accepted" })
-        .then(() => {
-          Alert.alert("Ride Accepted", "You have accepted the ride request.");
-          startRideToPickup();
-        })
-        .catch((error) => {
-          console.error("Error accepting the ride:", error);
-        });
-    }
-  };
+  const handleAcceptRide = (rideRequest) => {
+    setCustomerPickUpLocation({
+      latitude:  rideRequest.pickup_latitude,
+      longitude: rideRequest.pickup_longitude
+    });
+    setCustomerDropLocation({
+      latitude: rideRequest.drop_latitude,
+      longitude: rideRequest.drop_longitude
+    });
+    handleRideRequest({status: 'accepted'});
 
-  const startRideToPickup = async () => {
-    try {
-      let location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-
-      setDriverLocation({
-        latitude,
-        longitude,
-      });
-
-      const updateInterval = setInterval(async () => {
-        location = await Location.getCurrentPositionAsync({});
-        const { latitude: newLatitude, longitude: newLongitude } =
-          location.coords;
-        updateDriverLocationInDatabase(newLatitude, newLongitude);
-        setDriverLocation({
-          latitude: newLatitude,
-          longitude: newLongitude,
-        });
-
-        if (
-          rideRequest &&
-          rideRequest.pickUp &&
-          getDistance(
-            newLatitude,
-            newLongitude,
-            rideRequest.pickUp.latitude,
-            rideRequest.pickUp.longitude
-          ) < 1
-        ) {
-          clearInterval(updateInterval);
-          Alert.alert(
-            "Pickup Reached",
-            "You have reached the pickup location."
-          );
-        }
-      }, 10000); // Update every 10 seconds
-    } catch (error) {
-      console.error("Error starting the ride:", error);
-    }
-  };
-
-  const updateDriverLocationInDatabase = async (latitude, longitude) => {
-    if (userInfo && userInfo.id) {
-      const driverRef = ref(database, `/locations/drivers/${userInfo.id}`);
-      await update(driverRef, {
-        latitude: latitude,
-        longitude: longitude,
-        visible: isVisible,
-      });
-    }
-  };
-
-  const getDistance = (lat1, lon1, lat2, lon2) => {
-    const toRad = (value) => (value * Math.PI) / 180;
-    const R = 6371e3; // Radius of the Earth in meters
-    const φ1 = toRad(lat1);
-    const φ2 = toRad(lat2);
-    const Δφ = toRad(lat2 - lat1);
-    const Δλ = toRad(lon2 - lon1);
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    const distance = R * c; // in meters
-    return distance;
+    Alert.alert("Ride Accepted", "You have accepted the ride request.");
+    // startRideToPickup();
+    router.push('/ridePageDriver');
   };
 
   const handleLogout = () => {
@@ -294,25 +190,33 @@ const DriverDashboard = () => {
         Alert.alert("Error", "Failed to log out. Please try again.");
       });
   };
+
   const handleRejectRide = () => {
-    if (userInfo && rideRequest) {
-      const requestRef = ref(
-        database,
-        `/locations/drivers/${userInfo.id}/newRequest`
-      );
-      update(requestRef, { status: "rejected" });
-      Alert.alert("Ride Rejected", "You have rejected the ride request.");
+    handleRideRequest({status: 'rejected'});
+    Alert.alert("Ride Rejected", "You have rejected the ride request.");
+  };
+
+  const handlePollResult = async (data) => {
+    setRideRequest(data.data[0]);
+    const { pickup_latitude, pickup_longitude, drop_latitude, drop_longitude, customer_id } = data.data[0];
+
+    let geocode = await Location.reverseGeocodeAsync({
+      latitude: parseFloat(drop_latitude),
+      longitude: parseFloat(drop_longitude),
+    });
+    if (geocode.length > 0) {
+      setPlaceName(geocode[0].formattedAddress);
+      setPickUpDetails(geocode[0].formattedAddress);
+    } else {
+      setPlaceName("Unknown");
+    }
+
+    if (data.status === 'accepted' || data.status === 'rejected') {
+      setStopCondition(true); // Stop polling when condition is met
     }
   };
 
-  if (!userInfo || !initialRegion) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Setting up dashboard...</Text>
-      </View>
-    );
-  }
+  console.log(pickUpDetails, "Reid data");
 
   return (
     <View style={styles.container}>
@@ -328,7 +232,7 @@ const DriverDashboard = () => {
           style={styles.profileContainer}
         >
           <FontAwesome5 name="user" size={24} color="white" />
-          <Text style={styles.userName}>{userInfo.email}</Text>
+          {/* <Text style={styles.userName}>{userInfo.email}</Text> */}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={toggleVisibility}
@@ -349,59 +253,56 @@ const DriverDashboard = () => {
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         region={initialRegion}
-        showsUserLocation={true}
+        // showsUserLocation={true}
         followsUserLocation={true}
       >
         {driverLocation && (
           <Marker coordinate={driverLocation}>
             <Callout style={styles.calloutStyle}>
-              <Text style={styles.calloutText}>Driver: {userInfo.email}</Text>
-              <Text style={styles.calloutText}>Phone: {userInfo.phone}</Text>
+              {/* <Text style={styles.calloutText}>Driver: {userInfo.email}</Text> */}
+              {/* <Text style={styles.calloutText}>Phone: {userInfo.phone}</Text> */}
               <Text style={styles.calloutText}>
-                Vehicle No: {userInfo.vehicleNumber}
+                {/* Vehicle No: {userInfo.vehicleNumber} */}
               </Text>
             </Callout>
           </Marker>
         )}
 
-        {rideRequest &&
-          rideRequest.pickUp &&
-          rideRequest.pickUp.latitude &&
-          rideRequest.pickUp.longitude && (
+        { rideRequest?.pickup_latitude && (
             <Marker
               coordinate={{
-                latitude: rideRequest.pickUp.latitude,
-                longitude: rideRequest.pickUp.longitude,
+                latitude: parseFloat(rideRequest.pickup_latitude),
+                longitude: parseFloat(rideRequest.pickup_longitude)
               }}
               pinColor="blue"
             >
               <Callout>
-                <Text>Pickup Location: {rideRequest.pickUp.name}</Text>
+                <Text>Pickup Location: {pickUpDetails || 'unknown'}</Text>
               </Callout>
             </Marker>
-          )}
+        )}
 
-        {driverLocation && rideRequest && rideRequest.pickUp && (
+        {driverLocation && rideRequest?.pickup_latitude && (
           <ShowDirections
             pickup={driverLocation}
             destination={{
-              latitude: rideRequest.pickUp.latitude,
-              longitude: rideRequest.pickUp.longitude,
+              latitude: parseFloat(rideRequest.pickup_latitude),
+              longitude: parseFloat(rideRequest.pickup_longitude)
             }}
           />
         )}
       </MapView>
 
-      {isVisible && rideRequest && (
+      {isVisible && rideRequest?.pickup_latitude && (
         <View style={styles.notificationContainer}>
           <Text style={styles.notificationText}>
-            Customer: {rideRequest.customer}
+            {/* Customer: {rideRequest.customer} */}
           </Text>
           <Text style={styles.notificationText}>
-            Ride Request from: {rideRequest?.pickUp?.name}
+            Ride Request from:
           </Text>
           <Text style={styles.notificationText}>
-            Destination: {rideRequest?.drop?.name}
+            Destination: {pickUpDetails ? pickUpDetails.slice(0, 20) : ''}
           </Text>
           <Text style={styles.notificationText}>Current Fare: ₹{fare}</Text>
           <Text style={styles.notificationText}>
@@ -412,7 +313,7 @@ const DriverDashboard = () => {
             {countdown % 60 < 10 ? `0${countdown % 60}` : countdown % 60}
           </Text>
           <TouchableOpacity
-            onPress={handleAcceptRide}
+            onPress={()=>handleAcceptRide(rideRequest)}
             style={styles.acceptButton}
           >
             <Text style={styles.acceptButtonText}>Accept Ride</Text>
@@ -457,6 +358,17 @@ const DriverDashboard = () => {
           </View>
         </View>
       </Modal>
+
+      {
+        !rideRequest?.pickup_latitude &&
+        <PollingComponent 
+        visibility={isVisible} 
+        pollFunction={pollForRides} 
+        stopCondition={stopCondition}
+        onPollResult={handlePollResult}    
+      />
+      }
+      
     </View>
   );
 };

@@ -11,6 +11,9 @@ const AppProvider = ({ children }) => {
   const [selectedDriver, setSelectedDriver] = useState('');
   const [currentLocation, setCurrentLocation] = useState(null);
   const [destination, setDestination] = useState(null);
+  const [role, setRole] = useState('customer');
+  const [customerPickUpLocation, setCustomerPickUpLocation] = useState(null);
+  const [customerDropLocation, setCustomerDropLocation] = useState(null);
 
   return (
     <AppContext.Provider
@@ -23,7 +26,10 @@ const AppProvider = ({ children }) => {
         setPickUpDetails, pickUpDetails,
         setSelectedDriver, selectedDriver,
         setDestination, destination,
-        setCurrentLocation, currentLocation
+        setCurrentLocation, currentLocation,
+        setRole, role,
+        setCustomerPickUpLocation, customerPickUpLocation,
+        setCustomerDropLocation, customerDropLocation
       }}
     >
       {children}
