@@ -79,8 +79,8 @@ const DriverDashboard = () => {
       const newRegion = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
+        latitudeDelta: 0.0250,
+        longitudeDelta: 0.007,
       };
       setInitialRegion(newRegion);
       setDriverLocation({
@@ -216,7 +216,14 @@ const DriverDashboard = () => {
     }
   };
 
-  console.log(pickUpDetails, "Reid data");
+  if (!initialRegion) {
+    return (
+      <View style={styles.loaderFullScreen}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text>Getthing things ready...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -248,6 +255,7 @@ const DriverDashboard = () => {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
+      
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -368,7 +376,7 @@ const DriverDashboard = () => {
         onPollResult={handlePollResult}    
       />
       }
-      
+   
     </View>
   );
 };
@@ -509,6 +517,14 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: "white",
     fontWeight: "bold",
+  },
+  loaderFullScreen: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "white",
+    padding: 10,
+    borderRadius: 5,
   },
 });
 

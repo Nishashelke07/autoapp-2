@@ -13,8 +13,6 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import InputLocation from "./inputLocation";
 import * as Location from "expo-location";
 import React, { useState, useEffect, useContext, useRef } from "react";
-import { ref, set } from "firebase/database";
-import { db } from "../firebaseConfig";
 import {
   checkRideStatus,
   filterAndSortLocations,
@@ -66,10 +64,11 @@ export default function UserDashboard(props) {
   const [rideResponse, setRideResponse] = useState(null);
   const [stopCondition, setStopCondition] = useState(false);
   const [fakeRidesNearUser, setFakeRidesNearUser] = useState([]);
-
+  const [initialRegion, setInitialRegion] = useState(null);
 
   const closeModal = () => setVisible(false);
   const intervalRef = useRef(null);
+  const mapRef = useRef(null);
 
   const [drivesNearBy, setDriversNearBy] = useState([]);
 
@@ -117,6 +116,13 @@ export default function UserDashboard(props) {
           return;
         }
         let location = await Location.getCurrentPositionAsync({});
+        const newRegion = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.002,
+          longitudeDelta: 0.008
+        };
+        setInitialRegion(newRegion);
 
         let geocode = await Location.reverseGeocodeAsync({
           latitude: location.coords.latitude,
@@ -140,8 +146,9 @@ export default function UserDashboard(props) {
           { id: 4, latitude: latitude - 0.002, longitude: longitude + 0.002, title: 'Ride 4' },
         ];
         setFakeRidesNearUser(nearByFakeRides);
+
       } catch (err) {
-        setError("Failed to fetch data");
+        setError("Failed to fetch data 123");
         setLoading(false);
       }
     };
@@ -160,8 +167,21 @@ export default function UserDashboard(props) {
   };
 
   useEffect(() => {
+    if (mapRef?.current && destination) {
+      // Fit the map to cover both locations
+      mapRef.current.fitToCoordinates(
+        [currentLocation, destination], // Array of coordinates
+        {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, // Padding around the markers
+          animated: true, // Smooth animation
+        }
+      );
+    }
+  }, [destination]);
+
+  useEffect(() => {
     // Start moving rides every 5 seconds
-    intervalRef.current = setInterval(moveRides, 5000);
+    intervalRef.current = setInterval(moveRides, 15000);
     return () => clearInterval(intervalRef.current);
   }, []);
 
@@ -222,10 +242,6 @@ export default function UserDashboard(props) {
     setWaitStart(false);
   };
 
-  const handleLogout = () => {
-  
-  };
-
   // useEffect(() => {
   //   let timer;
   //   if (rideInProgress) {
@@ -237,18 +253,18 @@ export default function UserDashboard(props) {
   //   return () => clearTimeout(timer);
   // }, [rideInProgress]);
 
-  // if (loading) {
-  //   return (
-  //     <View style={styles.text}>
-  //       <ActivityIndicator size="large" color="#0000ff" />
-  //       <Text>Setting up things...</Text>
-  //     </View>
-  //   );
-  // }
+  if (!initialRegion) {
+      return (
+        <View style={styles.loaderFullScreen}>
+          <ActivityIndicator size="large" color="#0000ff" />
+          <Text>Getthing things ready...</Text>
+        </View>
+      );
+    }
 
   if (error) {
     return (
-      <View style={styles.text}>
+      <View style={styles.loaderFullScreen}>
         <Text>Error: {error}</Text>
       </View>
     );
@@ -269,14 +285,10 @@ export default function UserDashboard(props) {
     <View style={{ height: "100%" }}>
       <MapView
         style={waitStart ? styles.cutMap : styles.fullMap}
-        region={{
-          latitude: currentLocation?.latitude || 37.78825,
-          longitude: currentLocation?.longitude || -122.4324,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
+        region={initialRegion}
         provider={PROVIDER_GOOGLE}
         showsUserLocation={true}
+        ref={mapRef}
       >
         {destination &&
           drivesNearBy &&
@@ -325,6 +337,7 @@ export default function UserDashboard(props) {
           </Marker>
         )}
 
+        {/* show animated rides near user location before entering destination */}
         {!destination && fakeRidesNearUser.map((ride) => (
           <Marker
             key={ride.id}
@@ -337,7 +350,7 @@ export default function UserDashboard(props) {
           >
             <Image
                     source={AutoMarker}
-                    style={{ height: 28, width: 28 }}
+                    style={{ height: 24, width: 24 }}
                   />
           </Marker>
         ))}
@@ -381,11 +394,6 @@ export default function UserDashboard(props) {
           <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </TouchableOpacity>
       )} */}
-      <View style={styles.logoutButtonContainer}>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
 
       <PollingComponent 
         visibility={rideInProgress}
@@ -412,7 +420,7 @@ const styles = StyleSheet.create({
     left: 40,
     width: "80%",
   },
-  text: {
+  loaderFullScreen: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -430,21 +438,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   cancelButtonText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  logoutButtonContainer: {
-    position: "absolute",
-    bottom: 35, // Align with dashContainer
-    right: 30, // Position beside the visibility button
-    zIndex: 1000,
-  },
-  logoutButton: {
-    backgroundColor: "red",
-    padding: 10,
-    borderRadius: 20,
-  },
-  logoutButtonText: {
     color: "white",
     fontWeight: "bold",
   },
