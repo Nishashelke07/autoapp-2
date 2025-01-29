@@ -250,11 +250,13 @@ const DriverDashboard = () => {
           </Text>
         </TouchableOpacity>
       </LinearGradient>
-      <View style={styles.logoutButtonContainer}>
+
+      {/* Logout button */}
+      {/* <View style={styles.logoutButtonContainer}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
       
       <MapView
         ref={mapRef}

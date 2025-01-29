@@ -326,7 +326,7 @@ export default function UserDashboard(props) {
               </Marker>
             ))}
 
-        {selectedDriver && (
+        {destination && (
           <ShowDirections pickup={currentLocation} destination={destination} />
         )}
 
@@ -356,7 +356,7 @@ export default function UserDashboard(props) {
         ))}
       </MapView>
 
-      {/* Render Modal Separately */}
+      {/* Show no driver message if no drivers nearby */}
       {destination && !drivesNearBy && (
         <Modal
           transparent={true}
@@ -368,7 +368,7 @@ export default function UserDashboard(props) {
             <View style={styles.modalContainer}>
               <TouchableWithoutFeedback>
                 <View style={styles.alertBox}>
-                  <Text style={styles.alertText}>No Drivers in the area at the moment! Please try later.</Text>
+                  <Text style={styles.alertText}>No Drivers available at the moment! Please try after some time.</Text>
                 </View>
               </TouchableWithoutFeedback>
             </View>

@@ -10,9 +10,9 @@ export default function App() {
   return (
     <View style={styles.container}>
       <GestureHandlerRootView> 
-        {/* <LoginForm /> */}
+        <LoginForm />
         {/* <DriverDashboard /> */}
-        <UserDashboard />
+        {/* <UserDashboard /> */}
       </GestureHandlerRootView>
     </View>
   );

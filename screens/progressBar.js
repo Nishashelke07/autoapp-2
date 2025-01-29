@@ -127,11 +127,9 @@ const ProgressBar = () => {
     ).start();
   }, [magnifierPosition]);
 
-  console.log(rideAccept, 'rideAccept');
-
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Finding Nearest ride ...</Text>
+      <Text style={styles.label}>Confirming your ride ...</Text>
       <View
         style={styles.barContainer}
         onLayout={(event) => {
