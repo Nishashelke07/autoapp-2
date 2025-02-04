@@ -115,7 +115,11 @@ export default function UserDashboard(props) {
           setLoading(false);
           return;
         }
+        
         let location = await Location.getCurrentPositionAsync({});
+
+        console.log(location, "location");
+
         const newRegion = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -257,7 +261,7 @@ export default function UserDashboard(props) {
       return (
         <View style={styles.loaderFullScreen}>
           <ActivityIndicator size="large" color="#0000ff" />
-          <Text>Getthing things ready...</Text>
+          <Text>Getting things ready...</Text>
         </View>
       );
     }
@@ -376,12 +380,14 @@ export default function UserDashboard(props) {
         </Modal>
       )}
 
+      {/* set status to waiting on ride request, to wait for driver reply */}
       {waitStart && (
         <GestureHandlerRootView>
           <WaitingBottomSheet progress={progress} />
         </GestureHandlerRootView>
       )}
 
+      {/* The search bar at the top to search destination */}
       <View style={styles.inputsearchbar}>
         <InputLocation setDestination={setDestination} bounds={bounds} />
       </View>

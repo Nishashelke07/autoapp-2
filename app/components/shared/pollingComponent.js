@@ -11,7 +11,7 @@ const PollingComponent = ({
 
   useEffect(() => {
     if (visibility && !stopCondition) {
-      console.log('Starting polling...');
+      console.log('Starting polling...132');
       intervalRef.current = setInterval(async () => {
         try {
           const result = await pollFunction();

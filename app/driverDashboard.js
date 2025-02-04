@@ -9,22 +9,19 @@ import {
   StatusBar,
   Modal,
   Alert,
+  Image,
 } from "react-native";
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from "react-native-maps";
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, onValue, update } from "firebase/database";
 import { AppContext } from "../context";
 import ShowDirections from "../screens/showDirections";
 import { handleRideRequest, pollForRides, updateAutoLocation } from "../services/getDrivesOnline";
 import PollingComponent from "./components/shared/pollingComponent";
 import { router } from "expo-router";
-
-const auth = getAuth();
-const database = getDatabase();
+import rickShawIcon from "../assets/ricksaw.png";
 
 const DriverDashboard = () => {
   const {
@@ -146,21 +143,7 @@ const DriverDashboard = () => {
 
   const handleDiscountSelection = (percentage) => {
     setDiscount(percentage);
-    updateDiscountInDatabase(percentage);
     setModalVisible(false);
-  };
-
-  const updateDiscountInDatabase = (percentage) => {
-    if (userInfo && userInfo.id) {
-      const driverRef = ref(database, `/locations/drivers/${userInfo.id}`);
-      update(driverRef, { discount: percentage })
-        .then(() => {
-          console.log("Discount updated in database:", percentage);
-        })
-        .catch((error) => {
-          console.error("Error updating discount:", error);
-        });
-    }
   };
 
   const handleAcceptRide = (rideRequest) => {
@@ -179,25 +162,15 @@ const DriverDashboard = () => {
     router.push('/ridePageDriver');
   };
 
-  const handleLogout = () => {
-    signOut(auth)
-      .then(() => {
-        Alert.alert("Logged Out", "You have been successfully logged out.");
-        navigation.navigate("LoginForm");
-      })
-      .catch((error) => {
-        console.error("Error logging out:", error);
-        Alert.alert("Error", "Failed to log out. Please try again.");
-      });
-  };
-
   const handleRejectRide = () => {
     handleRideRequest({status: 'rejected'});
     Alert.alert("Ride Rejected", "You have rejected the ride request.");
+    // setRideRequest
   };
 
   const handlePollResult = async (data) => {
     setRideRequest(data.data[0]);
+    console.log(data.data, "data From Polling -> driver Dashboard");
     const { pickup_latitude, pickup_longitude, drop_latitude, drop_longitude, customer_id } = data.data[0];
 
     let geocode = await Location.reverseGeocodeAsync({
@@ -220,7 +193,7 @@ const DriverDashboard = () => {
     return (
       <View style={styles.loaderFullScreen}>
         <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Getthing things ready...</Text>
+        <Text>Getting things ready...</Text>
       </View>
     );
   }
@@ -250,13 +223,6 @@ const DriverDashboard = () => {
           </Text>
         </TouchableOpacity>
       </LinearGradient>
-
-      {/* Logout button */}
-      {/* <View style={styles.logoutButtonContainer}>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View> */}
       
       <MapView
         ref={mapRef}
@@ -268,16 +234,19 @@ const DriverDashboard = () => {
       >
         {driverLocation && (
           <Marker coordinate={driverLocation}>
+            <Image source={rickShawIcon} style={{width: 38, height: 38, borderRadius: 12}}/>
+              
             <Callout style={styles.calloutStyle}>
               {/* <Text style={styles.calloutText}>Driver: {userInfo.email}</Text> */}
               {/* <Text style={styles.calloutText}>Phone: {userInfo.phone}</Text> */}
               <Text style={styles.calloutText}>
-                {/* Vehicle No: {userInfo.vehicleNumber} */}
+                You are here...
               </Text>
             </Callout>
           </Marker>
         )}
 
+        {/* User's pickup Point */}
         { rideRequest?.pickup_latitude && (
             <Marker
               coordinate={{
@@ -303,6 +272,7 @@ const DriverDashboard = () => {
         )}
       </MapView>
 
+      {/* Show the requested ride details - Destination, Current Fare, discount, time */}
       {isVisible && rideRequest?.pickup_latitude && (
         <View style={styles.notificationContainer}>
           <Text style={styles.notificationText}>
@@ -337,6 +307,7 @@ const DriverDashboard = () => {
         </View>
       )}
 
+      {/* Show discount options */}
       <Modal
         transparent={true}
         animationType="slide"
@@ -369,6 +340,7 @@ const DriverDashboard = () => {
         </View>
       </Modal>
 
+      {/* Polling when no ride requested to the driver */}
       {
         !rideRequest?.pickup_latitude &&
         <PollingComponent 
