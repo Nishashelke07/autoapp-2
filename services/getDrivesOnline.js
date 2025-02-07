@@ -100,6 +100,7 @@ export const pollForRides = async () => {
   }
 };
 
+// Driver -> Accept / Reject ride request from User
 export const handleRideRequest = async (status) => {
   const token = await getAccessToken();
   if (!token) {

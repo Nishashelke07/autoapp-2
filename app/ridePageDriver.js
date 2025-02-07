@@ -40,7 +40,10 @@ const RidePageDriver = () => {
         const updateLocation = async () => {
           const location = await Location.getCurrentPositionAsync({});
           const { latitude, longitude } = location.coords;
-          setDriverLocation({ latitude, longitude });
+          setDriverLocation({ 
+            latitude:  location.coords.latitude,
+            longitude: location.coords.longitude,
+           });
 
           // Use the service function to update location
           await updateDriverLocation(latitude, longitude);
@@ -74,10 +77,10 @@ const RidePageDriver = () => {
 
       // Check if the driver has reached the pickup location
       const distanceToPickup = getDistance(
-        // driverLocation.latitude,
-        // driverLocation.longitude,
-        18.5575,
-        73.7726,
+        driverLocation.latitude,
+        driverLocation.longitude,
+        // 18.5575,
+        // 73.7726,
         customerPickUpLocation.latitude,
         customerPickUpLocation.longitude
       );

@@ -165,9 +165,10 @@ const DriverDashboard = () => {
   const handleRejectRide = () => {
     handleRideRequest({status: 'rejected'});
     Alert.alert("Ride Rejected", "You have rejected the ride request.");
-    // setRideRequest
+    setRideRequest(null);
   };
 
+  // poll for new rides
   const handlePollResult = async (data) => {
     setRideRequest(data.data[0]);
     console.log(data.data, "data From Polling -> driver Dashboard");
@@ -189,6 +190,7 @@ const DriverDashboard = () => {
     }
   };
 
+  // show initial message till the initial region
   if (!initialRegion) {
     return (
       <View style={styles.loaderFullScreen}>
@@ -224,6 +226,7 @@ const DriverDashboard = () => {
         </TouchableOpacity>
       </LinearGradient>
       
+      {/* Initial view */}
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -261,6 +264,7 @@ const DriverDashboard = () => {
             </Marker>
         )}
 
+        {/* show route from driver current location to user's pickup point */}
         {driverLocation && rideRequest?.pickup_latitude && (
           <ShowDirections
             pickup={driverLocation}
